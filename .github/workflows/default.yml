@@ -1,0 +1,121 @@
+name: default
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  # tests:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: install go
+  #       uses: actions/setup-go@v3
+  #       with:
+  #         go-version: 1.18.3
+
+  #     - name: checkout code
+  #       uses: actions/checkout@v3
+
+  #     - name: build
+  #       run: go build -v ./...
+
+  #     - name: run go vet
+  #       run: go vet ./...
+
+  #     - name: run go test
+  #       run: go test ./...
+
+  # build:
+  #   name: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - name: executing remote ssh commands using password
+  #     uses: appleboy/ssh-action@v0.1.7
+  #     with:
+  #       host: ${{ secrets.HOST }}
+  #       username: ${{ secrets.USERNAME }}
+  #       password: ${{ secrets.PASSWORD }}
+  #       port: ${{ secrets.PORT }}
+  #       script: whoami
+
+  build:
+    runs-on: ubuntu-latest
+    # needs: tests
+    steps:
+
+      - name: set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: push API
+        uses: docker/build-push-action@v4
+        with:
+          push: true
+          file: Dockerfile
+          tags: ${{ secrets.DOCKER_USER }}/api:latest
+
+  deploy:
+    environment: production
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@master
+      - name: executing remote ssh commands using password
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          port: ${{ secrets.PORT }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          script: |
+            export SERVER_HOST="${{secrets.SERVER_HOST }}"
+            export SERVER_PORT="${{secrets.SERVER_PORT }}"
+            export CLIENT_URL="${{secrets.CLIENT_URL }}"
+            export HOST="${{secrets.HOST }}"
+            export PORT="${{secrets.PORT }}"
+            export MONGO_URL="${{ secrets.MONGO_URL }}"
+            export MONGO_USER="${{ secrets.MONGO_USER }}"
+            export MONGO_PASSWORD="${{ secrets.MONGO_PASSWORD }}"
+            export EMAIL_FROM="${{ secrets.EMAIL_FROM }}"
+            export EMAIL_PASSWORD="${{ secrets.EMAIL_PASSWORD }}"
+            export EMAIL_SMTP_HOST="${{ secrets.EMAIL_SMTP_HOST }}"
+            export EMAIL_SMTP_PORT="${{ secrets.EMAIL_SMTP_PORT }}"
+            export SALT="${{ secrets.SALT }}"
+            export JWT_ACCESS_SECRET="${{secrets.JWT_ACCESS_SECRET }}"
+            export DOCKER_USER="${{secrets.DOCKER_USER }}"
+            export GIN_MODE=release
+
+            # login Docker Hub
+            # docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+            echo ${{ secrets.DOCKER_TOKEN }} | docker login -u ${{ secrets.DOCKER_USER }} --password-stdin
+
+            cd server
+            docker-compose stop
+            docker-compose rm -f
+            docker-compose pull
+            docker-compose up -d
+
+
+    # name: Build
+    # runs-on: ubuntu-latest
+    # steps:
+    # - uses: actions/checkout@master
+    # - name: copy file via ssh password
+    #   uses: appleboy/scp-action@master
+    #   with:
+    #     host: ${{ secrets.HOST }}
+    #     username: ${{ secrets.USERNAME }}
+    #     password: ${{ secrets.PASSWORD }}
+    #     port: ${{ secrets.PORT }}
+    #     source: "tests/a.txt,tests/b.txt"
+    #     target: "test"

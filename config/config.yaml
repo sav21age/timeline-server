@@ -1,0 +1,21 @@
+server:
+    max_header_bytes: 1 # in mb
+    read_timeout: 10s
+    write_timeout: 10s
+
+mongo:
+    db_name: "timeline"
+
+cache:
+    backend: "locmem" # locmem, dummy
+    cache_ttl: 1h
+
+token:
+    access_ttl: 7m
+    refresh_ttl: 1080h
+
+cookie:
+    secure: false
+
+log:
+    level: debug
